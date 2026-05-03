@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Physio Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body, html { height: 100%; overflow: hidden; margin: 0; background-color: #0f172a; position: fixed; width: 100%; }
+        /* הוידאו מוסתר לחלוטין כדי למנוע כפילויות, אבל קיים בשביל ה-iOS */
+        #video { position: absolute; width: 1px; height: 1px; opacity: 0.01; z-index: -100; pointer-events: none; }
+        #display-canvas { width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
+    </style>
+</head>
+<body class="flex flex-col h-screen text-white font-sans">
+
+    <header class="h-16 flex items-center justify-between px-6 bg-slate-800 border-b border-slate-700">
+        <h1 class="font-bold text-indigo-400 text-xl">AI PHYSIO PRO</h1>
+        <div class="flex items-center gap-2">
+            <div id="status-dot" class="w-2 h-2 bg-red-500 rounded-full"></div>
+            <span id="status-text" class="text-[10px] uppercase opacity-60 font-mono hidden md:inline">Offline</span>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        <div class="relative flex-[7] bg-black overflow-hidden flex items-center justify-center">
+            <div id="start-overlay" class="absolute inset-0 z-50 bg-slate-900 flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300">
+                <button id="start-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-5 px-12 rounded-full text-2xl shadow-[0_0_20px_rgba(79,70,229,0.4)] transition-transform active:scale-95">
+                    התחל אימון
+                </button>
+                <p id="browser-warning" class="mt-6 text-rose-400 text-sm font-bold hidden max-w-sm">
+                    ⚠️ זיהינו שאתה גולש בכרום באייפון. אפל חוסמת את המצלמה בדפדפן זה. אנא העתק את הקישור ופתח אותו בדפדפן Safari המקורי.
+                </p>
+            </div>
+            
+            <canvas id="display-canvas" width="640" height="480"></canvas>
+            <video id="video" width="640" height="480" autoplay playsinline muted></video>
+        </div>
+
+        <div class="flex-[3] bg-slate-800 p-8 flex flex-col gap-6 border-l border-slate-700 shadow-2xl">
+            <div id="feedback-card" class="flex-1 rounded-3xl border border-slate-600 bg-slate-900/50 flex flex-col items-center justify-center text-center p-6 transition-all duration-300">
+                <span id="feedback-icon" class="text-7xl mb-4">👀</span>
+                <p id="feedback-text" class="text-3xl font-black text-indigo-300">מוכן?</p>
+            </div>
+            
+            <div class="bg-slate-900/40 p-5 rounded-2xl border border-slate-700">
+                <h3 class="text-xs font-bold text-indigo-400 uppercase mb-2">התרגיל: הרחקת כתפיים מלאה</h3>
+                <p class="text-slate-300 leading-relaxed text-sm">
+                     הרם את היד מהצד (כנף) עד מעל הראש. המערכת תוודא עבודה טובה.
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const socket = io();
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('display-canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('start-btn');
+        const overlay = document.getElementById('start-overlay');
+        const feedbackText = document.getElementById('feedback-text');
+        const feedbackIcon = document.getElementById('feedback-icon');
+        const feedbackCard = document.getElementById('feedback-card');
+        const warningText = document.getElementById('browser-warning');
+
+        // זיהוי iOS Chrome לחסימה חינוכית
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isChromeIOS = navigator.userAgent.match('CriOS');
+
+        if (isIOS && isChromeIOS) {
+            warningText.classList.remove('hidden');
+            startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            startBtn.disabled = true;
+        }
+
+        startBtn.addEventListener('click', async () => {
+            if (startBtn.disabled) return;
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                video.srcObject = stream;
+                
+                // פתרון לאייפון - המתנה לטעינת המידע לפני הפעלה
+                video.onloadedmetadata = () => {
+                    video.play();
+                    overlay.style.opacity = '0';
+                    setTimeout(() => overlay.style.display = 'none', 300);
+                    renderFrame();
+                };
+            } catch (err) {
+                alert("שגיאה במצלמה. בדוק הרשאות או ודא שאתה גולש בספארי. " + err.message);
+            }
+        });
+
+        function renderFrame() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                ctx.drawImage(video, 0, 0, 640, 480);
+                socket.emit('video_frame', canvas.toDataURL('image/jpeg', 0.4));
+            }
+            requestAnimationFrame(renderFrame);
+        }
+
+        socket.on('feedback', (data) => {
+            feedbackText.innerText = data.message;
+            
+            // צביעת הכרטיסייה לפי סטטוס
+            if (data.status === 'Correct') {
+                feedbackCard.className = 'flex-1 rounded-3xl border-2 border-emerald-500 bg-emerald-900/30 flex flex-col items-center justify-center text-center p-6';
+                feedbackIcon.innerText = '✅';
+                feedbackText.className = 'text-3xl font-black text-emerald-400';
+            } else if (data.status === 'Partial') {
+                feedbackCard.className = 'flex-1 rounded-3xl border-2 border-orange-500 bg-orange-900/30 flex flex-col items-center justify-center text-center p-6';
+                feedbackIcon.innerText = '⚡';
+                feedbackText.className = 'text-3xl font-black text-orange-400';
+            } else if (data.status === 'Incorrect') {
+                feedbackCard.className = 'flex-1 rounded-3xl border-2 border-rose-500 bg-rose-900/30 flex flex-col items-center justify-center text-center p-6';
+                feedbackIcon.innerText = '🏋️‍♂️';
+                feedbackText.className = 'text-3xl font-black text-rose-400';
+            } else {
+                feedbackCard.className = 'flex-1 rounded-3xl border border-slate-600 bg-slate-900/50 flex flex-col items-center justify-center text-center p-6';
+                feedbackIcon.innerText = '👀';
+                feedbackText.className = 'text-3xl font-black text-indigo-300';
+            }
+        });
+
+        socket.on('connect', () => {
+            document.getElementById('status-dot').className = 'w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_#22c55e]';
+            document.getElementById('status-text').innerText = 'Online';
+        });
+    </script>
+</body>
+</html>
