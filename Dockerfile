@@ -1,20 +1,22 @@
-FROM python:3.10-slim
+FROM python:3.9-slim
 
-# התקנת ספריות מערכת שנדרשות עבור OpenCV ו-MediaPipe בלינוקס
+# התקנת תלויות מערכת עבור OpenCV ו-MediaPipe
 RUN apt-get update && apt-get install -y \
-    libgl1 \
+    libgl1-mesa-glx \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY requirements.txt .
+# העתקת קובץ הדרישות והתקנה
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# נעתיק את הקוד שנכתוב מיד
-COPY . .
+# העתקת כל תוכן תיקיית ה-backend לתוך ה-Container
+COPY backend/ ./backend/
 
-# נריץ את השרת בפורט 5000
-EXPOSE 5000
+# הגדרת משתנה סביבה כדי שפייתון ימצא את הקבצים
+ENV PYTHONPATH=/app/backend
 
-CMD ["python", "app.py"]
+# הרצת השרת מתוך התיקייה החדשה
+CMD ["python", "backend/app.py"]
