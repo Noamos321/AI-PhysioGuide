@@ -1,30 +1,5 @@
-# Python - קבצי הרצה זמניים
+data/
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-
-# Environments - סביבות וירטואליות
-.venv/
-venv/
-ENV/
-env/
-
-# Jupyter Notebooks - קבצים זמניים של מחברות מחקר
-.ipynb_checkpoints
-*/.ipynb_checkpoints/*
-
-# Data & Models - קבצים כבדים (לא מומלץ להעלות דאטה כבד לגיטהאב)
-# נשאיר את התיקייה עצמה אבל נתעלם מהקבצים בתוכה
-data/*.csv
-research/*.h5
-research/*.pkl
-research/*.weights
-
-# Operating System - קבצי מערכת זמניים
+*.csv
+.env
 .DS_Store
-Thumbs.db
-
-# IDE - הגדרות של ויזואל סטודיו
-.vscode/
-.idea/

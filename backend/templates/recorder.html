@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Physio - Training Journey</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root { --bg: #121212; --card: #1e1e1e; --primary: #007bff; --accent: #00c6ff; --text: #eeeeee; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; overflow-x: hidden; }
+        
+        /* דפים */
+        .page { display: none; width: 100vw; min-height: 100vh; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        .page.active { display: flex; }
+
+        /* כרטיסיות */
+        .card { background: var(--card); width: 100%; max-width: 400px; padding: 30px; border-radius: 30px; box-shadow: 0 15px 35px rgba(0,0,0,0.4); text-align: center; }
+        
+        /* כפתורים */
+        .btn { width: 100%; padding: 18px; border-radius: 50px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 15px; }
+        .btn-primary { background: linear-gradient(45deg, var(--primary), var(--accent)); color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-outline { background: transparent; border: 2px solid #444; color: #aaa; margin-top: 10px; }
+
+        /* עיצוב המצלמה */
+        .video-container { position: relative; width: 100%; max-width: 600px; border-radius: 20px; overflow: hidden; border: 2px solid #333; }
+        video { width: 100%; height: auto; transform: scaleX(-1); }
+        .recording-overlay { position: absolute; top: 15px; right: 15px; background: rgba(220, 53, 69, 0.8); padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; animation: blink 1s infinite; display: none; }
+
+        /* סלקטורים */
+        select { width: 100%; padding: 15px; border-radius: 15px; background: #333; color: white; border: 1px solid #444; font-size: 1.1rem; margin-top: 10px; }
+
+        @keyframes blink { 50% { opacity: 0.5; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+    <!-- שלב 1: בחירת תרגיל -->
+    <div id="page1" class="page active">
+        <div class="card">
+            <div style="font-size: 3rem; margin-bottom: 10px;">🏋️</div>
+            <h2>מה נאמן היום?</h2>
+            <p style="color: #aaa;">בחר את התרגיל שבו תרצה להעשיר את המודל</p>
+            <select id="exerciseSelect">
+                <option value="Squat">סקוואט (Squat)</option>
+                <option value="Pushup">שכיבות סמיכה (Push-up)</option>
+                <option value="Pullup">מתח (Pull-up)</option>
+                <option value="Dips">מקבילים (Dips)</option>
+                <option value="Lunge">לאנג' (Lunge)</option>
+            </select>
+            <button class="btn btn-primary" onclick="goToPage2()">המשך להגדרת צילום</button>
+        </div>
+    </div>
+
+    <!-- שלב 2: הדרכה דיאגרמת שעון -->
+    <div id="page2" class="page">
+        <div class="card">
+            <h3 id="targetHeader" style="color: var(--accent);">איזה כיף! בחרת בסקוואט</h3>
+            <p style="color: #ccc; font-size: 0.9rem;">כדי שהמודל ילמד טוב, בחר את זווית המצלמה:</p>
+            
+            <select id="angleSelect" onchange="drawClock(this.value)">
+                <option value="Front">חזית (12:00)</option>
+                <option value="Side_Right">פרופיל ימין (3:00)</option>
+                <option value="Side_Left">פרופיל שמאל (9:00)</option>
+                <option value="45Deg_Right">אלכסון ימין (1:30)</option>
+                <option value="45Deg_Left">אלכסון שמאל (10:30)</option>
+            </select>
+
+            <canvas id="clockCanvas" width="220" height="220" style="margin: 15px auto;"></canvas>
+            
+            <div id="angleHelp" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 15px; font-size: 0.9rem; border-right: 4px solid var(--accent);">
+                שים את המצלמה ישר מולך.
+            </div>
+
+            <button class="btn btn-primary" onclick="goToPage3()">הבנתי, בוא נתחיל!</button>
+            <button class="btn btn-outline" onclick="showPage('page1')">חזור לבחירת תרגיל</button>
+        </div>
+    </div>
+
+    <!-- שלב 3: הקלטה חלקה -->
+    <div id="page3" class="page">
+        <div id="recordInfo" style="margin-bottom: 10px; font-weight: bold; color: #aaa;"></div>
+        <div class="video-container">
+            <video id="videoElement" autoplay muted playsinline></video>
+            <div id="recIndicator" class="recording-overlay">● RECORDING</div>
+        </div>
+        
+        <div style="width: 100%; max-width: 400px; margin-top: 15px;">
+            <button id="recordBtn" class="btn btn-success">🔴 התחל הקלטה</button>
+            <button class="btn btn-outline" id="backToSetup" onclick="stopEverything()">ביטול וחזרה</button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('clockCanvas');
+        const ctx = canvas.getContext('2d');
+        let isRecording = false;
+
+        const angleConfig = {
+            "Front": { angle: -Math.PI / 2, desc: "שים את המצלמה ישר מולך, בגובה החזה." },
+            "Side_Right": { angle: 0, desc: "העמד את המצלמה מצד ימין שלך." },
+            "Side_Left": { angle: Math.PI, desc: "העמד את המצלמה מצד שמאל שלך." },
+            "45Deg_Right": { angle: -Math.PI / 4, desc: "שים את המצלמה באלכסון מימין." },
+            "45Deg_Left": { angle: -3 * Math.PI / 4, desc: "שים את המצלמה באלכסון משמאל." }
+        };
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        function goToPage2() {
+            const ex = document.getElementById('exerciseSelect').value;
+            document.getElementById('targetHeader').innerText = `איזה כיף! בחרת ב-${ex}`;
+            drawClock(document.getElementById('angleSelect').value);
+            showPage('page2');
+        }
+
+        function goToPage3() {
+            const ex = document.getElementById('exerciseSelect').value;
+            const ang = document.getElementById('angleSelect').value;
+            document.getElementById('recordInfo').innerText = `${ex} | זווית ${ang}`;
+            
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+                .then(s => { 
+                    video.srcObject = s;
+                    showPage('page3');
+                });
+        }
+
+        function drawClock(type) {
+            const cx = 110, cy = 110, r = 85;
+            ctx.clearRect(0, 0, 220, 220);
+            
+            // רקע השעון
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+            ctx.fillStyle = '#2d2d2d'; ctx.fill();
+
+            // דמות מרכזית
+            ctx.fillStyle = '#00c6ff';
+            ctx.beginPath(); ctx.arc(cx, cy - 10, 10, 0, Math.PI*2); ctx.fill(); // ראש
+            ctx.beginPath(); ctx.ellipse(cx, cy + 15, 15, 20, 0, 0, Math.PI*2); ctx.fill(); // גוף
+            
+            // חץ מבט
+            ctx.strokeStyle = 'white'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(cx, cy - 25); ctx.lineTo(cx, cy - 45); ctx.stroke();
+
+            // המצלמה (נקודה אדומה)
+            const target = angleConfig[type];
+            const camX = cx + r * Math.cos(target.angle);
+            const camY = cy + r * Math.sin(target.angle);
+            
+            ctx.shadowBlur = 15; ctx.shadowColor = "#dc3545";
+            ctx.beginPath(); ctx.arc(camX, camY, 14, 0, Math.PI*2);
+            ctx.fillStyle = '#dc3545'; ctx.fill();
+            ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            document.getElementById('angleHelp').innerText = target.desc;
+        }
+
+        document.getElementById('recordBtn').onclick = function() {
+            if (!isRecording) {
+                const label = `${document.getElementById('exerciseSelect').value}_${document.getElementById('angleSelect').value}`;
+                socket.emit('start_recording', { label: label });
+                this.innerText = "⏹️ עצור ושמור";
+                this.style.background = "#dc3545";
+                document.getElementById('recIndicator').style.display = "block";
+                document.getElementById('backToSetup').style.display = "none";
+                isRecording = true;
+            } else {
+                socket.emit('stop_recording');
+                alert("כל הכבוד! האימון נשמר בשרת.");
+                stopEverything();
+            }
+        };
+
+        function stopEverything() {
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            isRecording = false;
+            const btn = document.getElementById('recordBtn');
+            btn.innerText = "🔴 התחל הקלטה";
+            btn.style.background = "#28a745";
+            document.getElementById('recIndicator').style.display = "none";
+            document.getElementById('backToSetup').style.display = "block";
+            showPage('page1');
+        }
+    </script>
+</body>
+</html>
