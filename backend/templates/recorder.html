@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AI Physio - Training Journey</title>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
     <style>
         :root { --bg: #121212; --card: #1e1e1e; --primary: #007bff; --accent: #00c6ff; --text: #eeeeee; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; overflow-x: hidden; }
@@ -24,19 +29,19 @@
 
         /* עיצוב המצלמה */
         .video-container { position: relative; width: 100%; max-width: 600px; border-radius: 20px; overflow: hidden; border: 2px solid #333; }
-        video { width: 100%; height: auto; transform: scaleX(-1); }
-        .recording-overlay { position: absolute; top: 15px; right: 15px; background: rgba(220, 53, 69, 0.8); padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; animation: blink 1s infinite; display: none; }
+        video { width: 100%; height: auto; transform: scaleX(-1); display: block; }
+        /* שכבת הציור של השלד - מונחת בדיוק על הווידאו */
+        .output_canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
+        .recording-overlay { position: absolute; top: 15px; right: 15px; background: rgba(220, 53, 69, 0.8); padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; animation: blink 1s infinite; display: none; z-index: 10; }
 
         /* סלקטורים */
         select { width: 100%; padding: 15px; border-radius: 15px; background: #333; color: white; border: 1px solid #444; font-size: 1.1rem; margin-top: 10px; }
 
         @keyframes blink { 50% { opacity: 0.5; } }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
 
-    <!-- שלב 1: בחירת תרגיל -->
     <div id="page1" class="page active">
         <div class="card">
             <div style="font-size: 3rem; margin-bottom: 10px;">🏋️</div>
@@ -53,7 +58,6 @@
         </div>
     </div>
 
-    <!-- שלב 2: הדרכה דיאגרמת שעון -->
     <div id="page2" class="page">
         <div class="card">
             <h3 id="targetHeader" style="color: var(--accent);">איזה כיף! בחרת בסקוואט</h3>
@@ -78,11 +82,11 @@
         </div>
     </div>
 
-    <!-- שלב 3: הקלטה חלקה -->
     <div id="page3" class="page">
         <div id="recordInfo" style="margin-bottom: 10px; font-weight: bold; color: #aaa;"></div>
         <div class="video-container">
             <video id="videoElement" autoplay muted playsinline></video>
+            <canvas id="outputCanvas" class="output_canvas"></canvas>
             <div id="recIndicator" class="recording-overlay">● RECORDING</div>
         </div>
         
@@ -94,10 +98,56 @@
 
     <script>
         const socket = io();
-        const video = document.getElementById('videoElement');
-        const canvas = document.getElementById('clockCanvas');
-        const ctx = canvas.getContext('2d');
+        const videoElement = document.getElementById('videoElement');
+        const canvasElement = document.getElementById('outputCanvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        
+        const clockCanvas = document.getElementById('clockCanvas');
+        const clockCtx = clockCanvas.getContext('2d');
+        
         let isRecording = false;
+        let camera = null;
+
+        // הגדרת המנוע של MediaPipe Pose
+        const pose = new Pose({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+        }});
+        
+        pose.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        // פונקציה שנקראת בכל פריים שבו מזוהה שלד
+        pose.onResults((results) => {
+            // קביעת מידות הקנבס בהתאם לווידאו
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // אם זוהה שלד - נצייר אותו
+            if (results.poseLandmarks) {
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00c6ff', lineWidth: 4});
+                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#dc3545', lineWidth: 2});
+                
+                // אם אנחנו בהקלטה - נשלח את הנתונים לשרת!
+                if (isRecording) {
+                    const frameData = [];
+                    // שומרים רק x, y, z כמו בפורמט שביקשת
+                    results.poseLandmarks.forEach(landmark => {
+                        frameData.push(landmark.x, landmark.y, landmark.z);
+                    });
+                    
+                    socket.emit('pose_data', { landmarks: frameData });
+                }
+            }
+            canvasCtx.restore();
+        });
 
         const angleConfig = {
             "Front": { angle: -Math.PI / 2, desc: "שים את המצלמה ישר מולך, בגובה החזה." },
@@ -123,41 +173,42 @@
             const ex = document.getElementById('exerciseSelect').value;
             const ang = document.getElementById('angleSelect').value;
             document.getElementById('recordInfo').innerText = `${ex} | זווית ${ang}`;
-            
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-                .then(s => { 
-                    video.srcObject = s;
-                    showPage('page3');
-                });
+            showPage('page3');
+
+            // הפעלת המצלמה דרך המנגנון של MediaPipe
+            camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await pose.send({image: videoElement});
+                },
+                width: 640,
+                height: 480
+            });
+            camera.start();
         }
 
         function drawClock(type) {
             const cx = 110, cy = 110, r = 85;
-            ctx.clearRect(0, 0, 220, 220);
+            clockCtx.clearRect(0, 0, 220, 220);
             
-            // רקע השעון
-            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
-            ctx.fillStyle = '#2d2d2d'; ctx.fill();
+            clockCtx.beginPath(); clockCtx.arc(cx, cy, r, 0, Math.PI*2);
+            clockCtx.fillStyle = '#2d2d2d'; clockCtx.fill();
 
-            // דמות מרכזית
-            ctx.fillStyle = '#00c6ff';
-            ctx.beginPath(); ctx.arc(cx, cy - 10, 10, 0, Math.PI*2); ctx.fill(); // ראש
-            ctx.beginPath(); ctx.ellipse(cx, cy + 15, 15, 20, 0, 0, Math.PI*2); ctx.fill(); // גוף
+            clockCtx.fillStyle = '#00c6ff';
+            clockCtx.beginPath(); clockCtx.arc(cx, cy - 10, 10, 0, Math.PI*2); clockCtx.fill(); 
+            clockCtx.beginPath(); clockCtx.ellipse(cx, cy + 15, 15, 20, 0, 0, Math.PI*2); clockCtx.fill(); 
             
-            // חץ מבט
-            ctx.strokeStyle = 'white'; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(cx, cy - 25); ctx.lineTo(cx, cy - 45); ctx.stroke();
+            clockCtx.strokeStyle = 'white'; clockCtx.lineWidth = 3;
+            clockCtx.beginPath(); clockCtx.moveTo(cx, cy - 25); clockCtx.lineTo(cx, cy - 45); clockCtx.stroke();
 
-            // המצלמה (נקודה אדומה)
             const target = angleConfig[type];
             const camX = cx + r * Math.cos(target.angle);
             const camY = cy + r * Math.sin(target.angle);
             
-            ctx.shadowBlur = 15; ctx.shadowColor = "#dc3545";
-            ctx.beginPath(); ctx.arc(camX, camY, 14, 0, Math.PI*2);
-            ctx.fillStyle = '#dc3545'; ctx.fill();
-            ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.shadowBlur = 0;
+            clockCtx.shadowBlur = 15; clockCtx.shadowColor = "#dc3545";
+            clockCtx.beginPath(); clockCtx.arc(camX, camY, 14, 0, Math.PI*2);
+            clockCtx.fillStyle = '#dc3545'; clockCtx.fill();
+            clockCtx.strokeStyle = 'white'; clockCtx.lineWidth = 2; clockCtx.stroke();
+            clockCtx.shadowBlur = 0;
 
             document.getElementById('angleHelp').innerText = target.desc;
         }
@@ -179,8 +230,8 @@
         };
 
         function stopEverything() {
-            if (video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
+            if (camera) {
+                camera.stop();
             }
             isRecording = false;
             const btn = document.getElementById('recordBtn');
