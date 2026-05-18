@@ -5,8 +5,7 @@ import random
 from datetime import datetime
 import numpy as np
 
-# הגדרת נתיב הנתונים בתוך הקונטיינר
-# ודא שב-docker-compose.yml מוגדר ה-Volume המתאים
+# הגדרת נתיב הנתונים בתוך הקונטיינר (ממופה לתיקייה המקומית דרך ה-Volume)
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -18,20 +17,21 @@ def init_csv_file(label):
     file_name = f"{label}_{now}_{unique_id}.csv"
     file_path = os.path.join(DATA_DIR, file_name)
     
+    # יצירת מבנה הכותרות המושלם (134 עמודות)
     headers = ['label', 'timestamp']
     for i in range(33):
-        # הוספנו פה את v_{i} בסוף
         headers.extend([f'x_{i}', f'y_{i}', f'z_{i}', f'v_{i}'])
         
     with open(file_path, mode='w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(headers)
         
+    print(f"[*] קובץ דאטה חדש נוצר בהצלחה: {file_path}")
     return file_path
 
 def append_to_csv(file_path, label, landmarks_list):
-    """כותב שורת נתונים לקובץ ה-CSV הקיים"""
-    # landmarks_list מגיע מהדפדפן כרשימה שטוחה [x0, y0, z0, v0, x1...]
+    """כותב שורת נתונים לקובץ ה-CSV הקיים - מיושר לפי 134 עמודות"""
+    # landmarks_list מגיע מהדפדפן כרשימה שטוחה: [x0, y0, z0, v0, x1, y1...]
     row = [label, time.time()] + landmarks_list
     
     with open(file_path, mode='a', newline='') as f:
@@ -39,7 +39,7 @@ def append_to_csv(file_path, label, landmarks_list):
         writer.writerow(row)
 
 def calculate_angle(a, b, c):
-    """מחשב זווית בין שלוש נקודות (משמש לפידבק בזמן אמת)"""
+    """מחשב זווית בין שלוש נקודות (לשימוש בפידבק בזמן אמת במידת הצורך)"""
     a = np.array([a['x'], a['y']])
     b = np.array([b['x'], b['y']])
     c = np.array([c['x'], c['y']])

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Physio - Training Journey</title>
+    <title>AI Physio - Data Collection Suite</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -14,28 +14,23 @@
         :root { --bg: #121212; --card: #1e1e1e; --primary: #007bff; --accent: #00c6ff; --text: #eeeeee; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; overflow-x: hidden; }
         
-        /* דפים */
         .page { display: none; width: 100vw; min-height: 100vh; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
         .page.active { display: flex; }
 
-        /* כרטיסיות */
-        .card { background: var(--card); width: 100%; max-width: 400px; padding: 30px; border-radius: 30px; box-shadow: 0 15px 35px rgba(0,0,0,0.4); text-align: center; }
+        .card { background: var(--card); width: 100%; max-width: 420px; padding: 30px; border-radius: 30px; box-shadow: 0 15px 35px rgba(0,0,0,0.4); text-align: center; }
         
-        /* כפתורים */
         .btn { width: 100%; padding: 18px; border-radius: 50px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 15px; }
         .btn-primary { background: linear-gradient(45deg, var(--primary), var(--accent)); color: white; }
         .btn-success { background: #28a745; color: white; }
         .btn-outline { background: transparent; border: 2px solid #444; color: #aaa; margin-top: 10px; }
 
-        /* עיצוב המצלמה */
         .video-container { position: relative; width: 100%; max-width: 600px; border-radius: 20px; overflow: hidden; border: 2px solid #333; }
         video { width: 100%; height: auto; transform: scaleX(-1); display: block; }
-        /* שכבת הציור של השלד - מונחת בדיוק על הווידאו */
         .output_canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
         .recording-overlay { position: absolute; top: 15px; right: 15px; background: rgba(220, 53, 69, 0.8); padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; animation: blink 1s infinite; display: none; z-index: 10; }
 
-        /* סלקטורים */
         select { width: 100%; padding: 15px; border-radius: 15px; background: #333; color: white; border: 1px solid #444; font-size: 1.1rem; margin-top: 10px; }
+        .instruction-box { background: rgba(0, 198, 255, 0.05); padding: 20px; border-radius: 20px; border-right: 4px solid var(--accent); margin: 20px 0; text-align: right; font-size: 0.95rem; line-height: 1.5; }
 
         @keyframes blink { 50% { opacity: 0.5; } }
     </style>
@@ -44,55 +39,49 @@
 
     <div id="page1" class="page active">
         <div class="card">
-            <div style="font-size: 3rem; margin-bottom: 10px;">🏋️</div>
-            <h2>מה נאמן היום?</h2>
-            <p style="color: #aaa;">בחר את התרגיל שבו תרצה להעשיר את המודל</p>
+            <div style="font-size: 3rem; margin-bottom: 10px;">🧘‍♂️</div>
+            <h2>מה נאסוף היום?</h2>
+            <p style="color: #aaa;">בחר את תרגיל הפיזיותרפיה שברצונך לבצע:</p>
             <select id="exerciseSelect">
-                <option value="Squat">סקוואט (Squat)</option>
-                <option value="Pushup">שכיבות סמיכה (Push-up)</option>
-                <option value="Pullup">מתח (Pull-up)</option>
-                <option value="Dips">מקבילים (Dips)</option>
-                <option value="Lunge">לאנג' (Lunge)</option>
+                <option value="Shoulder_Shrugs">הרמת כתפיים (Shoulder Shrugs)</option>
+                <option value="Neck_Tilt">הטיית ראש לצדדים (Neck Tilt)</option>
+                <option value="Neck_Rotation">הפניית ראש ימין/שמאל (Neck Rotation)</option>
+                <option value="Arm_Flies">פתיחה וסגירת ידיים (Arm Flies)</option>
+                <option value="Single_Arm_Raise">הרמת יד ישרה לפנים (Single Arm Raise)</option>
             </select>
-            <button class="btn btn-primary" onclick="goToPage2()">המשך להגדרת צילום</button>
+            <button class="btn btn-primary" onclick="goToPage2()">המשך להנחיות צילום</button>
         </div>
     </div>
 
     <div id="page2" class="page">
         <div class="card">
-            <h3 id="targetHeader" style="color: var(--accent);">איזה כיף! בחרת בסקוואט</h3>
-            <p style="color: #ccc; font-size: 0.9rem;">כדי שהמודל ילמד טוב, בחר את זווית המצלמה:</p>
+            <h3 id="targetHeader" style="color: var(--accent);">הנחיות לאיסוף דאטה איכותי</h3>
             
-            <select id="angleSelect" onchange="drawClock(this.value)">
-                <option value="Front">חזית (12:00)</option>
-                <option value="Side_Right">פרופיל ימין (3:00)</option>
-                <option value="Side_Left">פרופיל שמאל (9:00)</option>
-                <option value="45Deg_Right">אלכסון ימין (1:30)</option>
-                <option value="45Deg_Left">אלכסון שמאל (10:30)</option>
-            </select>
-
-            <canvas id="clockCanvas" width="220" height="220" style="margin: 15px auto;"></canvas>
-            
-            <div id="angleHelp" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 15px; font-size: 0.9rem; border-right: 4px solid var(--accent);">
-                שים את המצלמה ישר מולך.
+            <div class="instruction-box">
+                <strong>דגשים חשובים לצילום חזיתי (Frontal):</strong>
+                <ul style="margin-top: 10px; padding-right: 20px;">
+                    <li>שב ישר, מול מסך המחשב/הטלפון.</li>
+                    <li>ודא שפלג הגוף העליון והראש נמצאים במרכז הפריים.</li>
+                    <li>הימנע מתאורת רקע חזקה מדי שתחשיך את הפנים שלך.</li>
+                </ul>
             </div>
 
-            <button class="btn btn-primary" onclick="goToPage3()">הבנתי, בוא נתחיל!</button>
+            <button class="btn btn-primary" onclick="goToPage3()">הכל ברור, בוא נפתח מצלמה!</button>
             <button class="btn btn-outline" onclick="showPage('page1')">חזור לבחירת תרגיל</button>
         </div>
     </div>
 
     <div id="page3" class="page">
-        <div id="recordInfo" style="margin-bottom: 10px; font-weight: bold; color: #aaa;"></div>
+        <div id="recordInfo" style="margin-bottom: 10px; font-weight: bold; color: #aaa; font-size: 1.2rem;"></div>
         <div class="video-container">
             <video id="videoElement" autoplay muted playsinline></video>
             <canvas id="outputCanvas" class="output_canvas"></canvas>
-            <div id="recIndicator" class="recording-overlay">● RECORDING</div>
+            <div id="recIndicator" class="recording-overlay">● מריץ הקלטה בזמן אמת</div>
         </div>
         
         <div style="width: 100%; max-width: 400px; margin-top: 15px;">
-            <button id="recordBtn" class="btn btn-success">🔴 התחל הקלטה</button>
-            <button class="btn btn-outline" id="backToSetup" onclick="stopEverything()">ביטול וחזרה</button>
+            <button id="recordBtn" class="btn btn-success">🔴 התחל הקלטה קלינית</button>
+            <button class="btn btn-outline" id="backToSetup" onclick="stopEverything()">ביטול וחזרה לתפריט</button>
         </div>
     </div>
 
@@ -102,13 +91,10 @@
         const canvasElement = document.getElementById('outputCanvas');
         const canvasCtx = canvasElement.getContext('2d');
         
-        const clockCanvas = document.getElementById('clockCanvas');
-        const clockCtx = clockCanvas.getContext('2d');
-        
         let isRecording = false;
         let camera = null;
 
-        // הגדרת המנוע של MediaPipe Pose
+        // אתחול מנוע ה-Pose של MediaPipe
         const pose = new Pose({locateFile: (file) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
         }});
@@ -121,26 +107,25 @@
             minTrackingConfidence: 0.5
         });
 
-        // פונקציה שנקראת בכל פריים שבו מזוהה שלד
+        // פונקציית עיבוד הנתונים והציור על המסך
         pose.onResults((results) => {
-            // קביעת מידות הקנבס בהתאם לווידאו
             canvasElement.width = videoElement.videoWidth;
             canvasElement.height = videoElement.videoHeight;
             
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             
-            // אם זוהה שלד - נצייר אותו
             if (results.poseLandmarks) {
+                // ציור השלד האלקטרוני למשתמש בלייב
                 drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00c6ff', lineWidth: 4});
                 drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#dc3545', lineWidth: 2});
                 
-                // אם אנחנו בהקלטה - נשלח את הנתונים לשרת!
+                // שידור הנתונים המלאים לשרת הפיזיותרפיה
                 if (isRecording) {
                     const frameData = [];
-                    // שומרים רק x, y, z כמו בפורמט שביקשת
+                    // סנכרון מושלם לקולאב: דוחפים x, y, z וגם את ה-visibility של כל מפרק
                     results.poseLandmarks.forEach(landmark => {
-                        frameData.push(landmark.x, landmark.y, landmark.z);
+                        frameData.push(landmark.x, landmark.y, landmark.z, landmark.visibility);
                     });
                     
                     socket.emit('pose_data', { landmarks: frameData });
@@ -149,14 +134,6 @@
             canvasCtx.restore();
         });
 
-        const angleConfig = {
-            "Front": { angle: -Math.PI / 2, desc: "שים את המצלמה ישר מולך, בגובה החזה." },
-            "Side_Right": { angle: 0, desc: "העמד את המצלמה מצד ימין שלך." },
-            "Side_Left": { angle: Math.PI, desc: "העמד את המצלמה מצד שמאל שלך." },
-            "45Deg_Right": { angle: -Math.PI / 4, desc: "שים את המצלמה באלכסון מימין." },
-            "45Deg_Left": { angle: -3 * Math.PI / 4, desc: "שים את המצלמה באלכסון משמאל." }
-        };
-
         function showPage(pageId) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
@@ -164,18 +141,15 @@
 
         function goToPage2() {
             const ex = document.getElementById('exerciseSelect').value;
-            document.getElementById('targetHeader').innerText = `איזה כיף! בחרת ב-${ex}`;
-            drawClock(document.getElementById('angleSelect').value);
+            document.getElementById('targetHeader').innerText = `הנחיות לאיסוף תרגיל: ${ex}`;
             showPage('page2');
         }
 
         function goToPage3() {
             const ex = document.getElementById('exerciseSelect').value;
-            const ang = document.getElementById('angleSelect').value;
-            document.getElementById('recordInfo').innerText = `${ex} | זווית ${ang}`;
+            document.getElementById('recordInfo').innerText = `איסוף פעיל: ${ex} (מבט חזיתי)`;
             showPage('page3');
 
-            // הפעלת המצלמה דרך המנגנון של MediaPipe
             camera = new Camera(videoElement, {
                 onFrame: async () => {
                     await pose.send({image: videoElement});
@@ -186,45 +160,18 @@
             camera.start();
         }
 
-        function drawClock(type) {
-            const cx = 110, cy = 110, r = 85;
-            clockCtx.clearRect(0, 0, 220, 220);
-            
-            clockCtx.beginPath(); clockCtx.arc(cx, cy, r, 0, Math.PI*2);
-            clockCtx.fillStyle = '#2d2d2d'; clockCtx.fill();
-
-            clockCtx.fillStyle = '#00c6ff';
-            clockCtx.beginPath(); clockCtx.arc(cx, cy - 10, 10, 0, Math.PI*2); clockCtx.fill(); 
-            clockCtx.beginPath(); clockCtx.ellipse(cx, cy + 15, 15, 20, 0, 0, Math.PI*2); clockCtx.fill(); 
-            
-            clockCtx.strokeStyle = 'white'; clockCtx.lineWidth = 3;
-            clockCtx.beginPath(); clockCtx.moveTo(cx, cy - 25); clockCtx.lineTo(cx, cy - 45); clockCtx.stroke();
-
-            const target = angleConfig[type];
-            const camX = cx + r * Math.cos(target.angle);
-            const camY = cy + r * Math.sin(target.angle);
-            
-            clockCtx.shadowBlur = 15; clockCtx.shadowColor = "#dc3545";
-            clockCtx.beginPath(); clockCtx.arc(camX, camY, 14, 0, Math.PI*2);
-            clockCtx.fillStyle = '#dc3545'; clockCtx.fill();
-            clockCtx.strokeStyle = 'white'; clockCtx.lineWidth = 2; clockCtx.stroke();
-            clockCtx.shadowBlur = 0;
-
-            document.getElementById('angleHelp').innerText = target.desc;
-        }
-
         document.getElementById('recordBtn').onclick = function() {
             if (!isRecording) {
-                const label = `${document.getElementById('exerciseSelect').value}_${document.getElementById('angleSelect').value}`;
+                const label = document.getElementById('exerciseSelect').value;
                 socket.emit('start_recording', { label: label });
-                this.innerText = "⏹️ עצור ושמור";
+                this.innerText = "⏹️ עצור ושמור קובץ CSV";
                 this.style.background = "#dc3545";
                 document.getElementById('recIndicator').style.display = "block";
                 document.getElementById('backToSetup').style.display = "none";
                 isRecording = true;
             } else {
                 socket.emit('stop_recording');
-                alert("כל הכבוד! האימון נשמר בשרת.");
+                alert("קובץ הדאטה הפיזיותרפי ננעל ונשמר בשרת בהצלחה!");
                 stopEverything();
             }
         };
@@ -235,7 +182,7 @@
             }
             isRecording = false;
             const btn = document.getElementById('recordBtn');
-            btn.innerText = "🔴 התחל הקלטה";
+            btn.innerText = "🔴 התחל הקלטה קלינית";
             btn.style.background = "#28a745";
             document.getElementById('recIndicator').style.display = "none";
             document.getElementById('backToSetup').style.display = "block";
