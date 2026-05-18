@@ -20,7 +20,8 @@ def init_csv_file(label):
     
     headers = ['label', 'timestamp']
     for i in range(33):
-        headers.extend([f'x_{i}', f'y_{i}', f'z_{i}'])
+        # הוספנו פה את v_{i} בסוף
+        headers.extend([f'x_{i}', f'y_{i}', f'z_{i}', f'v_{i}'])
         
     with open(file_path, mode='w', newline='') as f:
         writer = csv.writer(f)
@@ -30,7 +31,7 @@ def init_csv_file(label):
 
 def append_to_csv(file_path, label, landmarks_list):
     """כותב שורת נתונים לקובץ ה-CSV הקיים"""
-    # landmarks_list מגיע מהדפדפן כרשימה שטוחה [x0, y0, z0, x1...]
+    # landmarks_list מגיע מהדפדפן כרשימה שטוחה [x0, y0, z0, v0, x1...]
     row = [label, time.time()] + landmarks_list
     
     with open(file_path, mode='a', newline='') as f:
